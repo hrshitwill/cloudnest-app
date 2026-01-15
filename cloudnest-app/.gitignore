@@ -21,7 +21,3 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Ignore uploaded files and runtime metadata
-server/uploads/
-server/metadata.json
