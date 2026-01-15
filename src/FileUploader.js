@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './FileUploader.css';
 
 export default function FileUploader() {
@@ -10,22 +10,24 @@ export default function FileUploader() {
   // Determine API base URL. Prefer the CRA env var; otherwise fall back to localhost in dev.
   const BASE = (process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:4000' : ''));
 
-  useEffect(() => {
-    fetchFiles();
-  }, []);
-
-  function fetchFiles() {
+  const fetchFiles = useCallback(() => {
     setLoading(true);
     fetch(BASE + '/files')
       .then(r => r.json())
       .then(data => setFiles(data))
       .catch(() => setFiles([]))
       .finally(() => setLoading(false));
-  }
+  }, [BASE]);
+
+  useEffect(() => {
+    fetchFiles();
+  }, [fetchFiles]);
 
   function deleteFile(id) {
-    if (!confirm('Delete this file? This action cannot be undone.')) return;
-    fetch(BASE + '/files/' + id, { method: 'DELETE' })
+    if (!window.confirm('Delete this file? This action cannot be undone.')) return;
+    const headers = {};
+    if (process.env.REACT_APP_API_KEY) headers['x-api-key'] = process.env.REACT_APP_API_KEY;
+    fetch(BASE + '/files/' + id, { method: 'DELETE', headers })
       .then(r => {
         if (!r.ok) throw new Error('Delete failed');
         // refresh list
