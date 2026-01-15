@@ -25,3 +25,6 @@ yarn-error.log*
 # Ignore uploaded files and runtime metadata
 server/uploads/
 server/metadata.json
+ 
+# Local environment file
+.env

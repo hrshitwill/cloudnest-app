@@ -7,8 +7,8 @@ export default function FileUploader() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // When developing locally, talk directly to backend to avoid proxy hiccups.
-  const BASE = window.location.hostname === 'localhost' ? 'http://localhost:4000' : '';
+  // Determine API base URL. Prefer the CRA env var; otherwise fall back to localhost in dev.
+  const BASE = (process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:4000' : ''));
 
   useEffect(() => {
     fetchFiles();

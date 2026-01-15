@@ -3,15 +3,31 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// load .env in development
+if (process.env.NODE_ENV !== 'production') {
+  try { require('dotenv').config(); } catch (e) { /* ignore if not installed */ }
+}
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+app.use(helmet());
 
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-const META_FILE = path.join(__dirname, 'metadata.json');
+// Basic rate limiting
+app.use(rateLimit({
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
+  max: Number(process.env.RATE_LIMIT_MAX_REQ || 300)
+}));
+
+const UPLOADS_DIR = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.join(__dirname, 'uploads');
+const META_FILE = process.env.META_FILE ? path.resolve(process.env.META_FILE) : path.join(__dirname, 'metadata.json');
+const MAX_FILE_SIZE = Number(process.env.MAX_FILE_SIZE || 10 * 1024 * 1024); // 10 MB
+const ALLOWED_MIME = (process.env.ALLOWED_MIME || 'image/jpeg,image/png,text/plain,application/pdf').split(',');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, JSON.stringify({ files: [] }, null, 2));
@@ -26,7 +42,12 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const fileFilter = (req, file, cb) => {
+  if (ALLOWED_MIME.includes(file.mimetype)) cb(null, true);
+  else cb(new Error('Unsupported file type'), false);
+};
+
+const upload = multer({ storage, limits: { fileSize: MAX_FILE_SIZE }, fileFilter });
 
 function readMeta() {
   try {
@@ -75,8 +96,16 @@ app.get('/files/:id', (req, res) => {
   res.json(f);
 });
 
-// Delete a file and its metadata entry
-app.delete('/files/:id', (req, res) => {
+// simple auth middleware (optional)
+function requireToken(req, res, next) {
+  const token = (req.headers['x-api-key'] || (req.headers.authorization || '').replace('Bearer ', '')) || null;
+  if (!process.env.AUTH_TOKEN) return next(); // no auth configured
+  if (token === process.env.AUTH_TOKEN) return next();
+  return res.status(401).json({ error: 'Unauthorized' });
+}
+
+// Delete a file and its metadata entry (protected by optional token)
+app.delete('/files/:id', requireToken, (req, res) => {
   const meta = readMeta();
   const idx = meta.files.findIndex(x => x.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
